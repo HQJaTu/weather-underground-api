@@ -94,9 +94,10 @@ def init_bigquery(credentials_file: str, dataset_id: str):
     return client, dataset, weather_table, airquality_table
 
 
-def get_most_recent_record(bigquery_client: bigquery.Client, bigquery_dataset) -> date:
+def get_most_recent_record(bigquery_client: bigquery.Client, bigquery_dataset: bigquery.Dataset,
+                           table_name: str) -> date:
     query = """SELECT MAX(observation_time)
-FROM `%s`""" % weather_table_name
+FROM `%s`""" % table_name
 
     job_config = bigquery.QueryJobConfig()
     job_config.default_dataset = bigquery_dataset
@@ -257,7 +258,7 @@ def loop_airquality_observation_days(start_date: date, bigquery_client: bigquery
             continue
 
         latest_tstep = max(obs.data.keys())
-        #point_name = list(obs.data[latest_tstep].keys())[0]
+        # point_name = list(obs.data[latest_tstep].keys())[0]
 
         filename = "fmi-airqual-%s.csv" % date_to_get.strftime(partition_format)
         if previous_filename and previous_filename != filename:
@@ -292,8 +293,10 @@ def loop_airquality_observation_days(start_date: date, bigquery_client: bigquery
                             measurement_ts,  # observation_time
                             point_name,  # stationid
                             obs.data[measurement_ts][point_name]['Sulphur dioxide']['value'],  # sulphurDioxide [µg/m3]
-                            obs.data[measurement_ts][point_name]['Nitrogen monoxide']['value'],  # nitrogenMonoxide [µg/m3]
-                            obs.data[measurement_ts][point_name]['Nitrogen dioxide']['value'],  # nitrogenDioxide [µg/m3]
+                            obs.data[measurement_ts][point_name]['Nitrogen monoxide']['value'],
+                            # nitrogenMonoxide [µg/m3]
+                            obs.data[measurement_ts][point_name]['Nitrogen dioxide']['value'],
+                            # nitrogenDioxide [µg/m3]
                             obs.data[measurement_ts][point_name]['Ozone']['value'],  # ozone [µg/m3]
                             obs.data[measurement_ts][point_name]['Odorous sulphur compounds']['value'],
                             # odorousSulphurCompounds [µgS/m3]
@@ -302,8 +305,10 @@ def loop_airquality_observation_days(start_date: date, bigquery_client: bigquery
                             # particulateMatter10um [µg/m3]
                             obs.data[measurement_ts][point_name]['Particulate matter < 2.5 µm']['value'],
                             # particulateMatter2_5um [µg/m3]
-                            obs.data[measurement_ts][point_name]['Air Quality Index']['value'],  # airQualityIndex [index]
-                            obs.data[measurement_ts][point_name]['musta hiili PM2.5']['value'],  # mustaHiiliPM2_5 [µg/m3]
+                            obs.data[measurement_ts][point_name]['Air Quality Index']['value'],
+                            # airQualityIndex [index]
+                            obs.data[measurement_ts][point_name]['musta hiili PM2.5']['value'],
+                            # mustaHiiliPM2_5 [µg/m3]
                         )
                         first_missing_column = None
                         for idx in required_columns:
@@ -324,7 +329,7 @@ def loop_airquality_observation_days(start_date: date, bigquery_client: bigquery
     log.info("Done looping.")
 
 
-def load_data(file_path: str, partition: str, bigquery_client: bigquery.Client, table: bigquery.Table, schema: list):
+def load_data(file_path: str, partition: str, bigquery_client: bigquery.Client, table: bigquery.Table, schema: list) -> None:
     """
     NOTE: This really doesn't work with free tier. Un-partitioned working ok.
     https://cloud.google.com/bigquery/docs/reference/rest/v2/Job
@@ -374,8 +379,8 @@ def load_data(file_path: str, partition: str, bigquery_client: bigquery.Client, 
     log.info("Done loading. Table %s.%s now has %d rows" % (table.dataset_id, out_table.table_id, out_table.num_rows))
 
 
-def main():
-    parser = argparse.ArgumentParser(description='OpenDNSSEC BIND slave zone configurator')
+def main() -> None:
+    parser = argparse.ArgumentParser(description='Transfer and upload fmi.fi data into Google BigQuery')
     parser.add_argument('--bigquery-json-credentials',
                         metavar='GOOGLE-JSON-CREDENTIALS-FILE', required=True,
                         help='Mandatory. JSON-file with Google BigQuery API Service Account credentials.')
@@ -402,7 +407,7 @@ def main():
             exit(0)
 
         # Go import PWS data
-        most_recent_date = get_most_recent_record(bq_client, bq_dataset)
+        most_recent_date = get_most_recent_record(bq_client, bq_dataset, weather_table_name)
         if most_recent_date:
             most_recent_date += timedelta(days=1)
         else:
@@ -414,12 +419,16 @@ def main():
         # CSV-load?
         if args.load_csv_file:
             log.info("Loading CSV-file %s into BigQuery" % args.load_csv_file)
-            load_data(args.load_csv_file, "", bq_client, bq_aq_table)
+            load_data(args.load_csv_file, "", bq_client, bq_aq_table, airquality_table_schema)
             log.info("Done loading CSV-file")
             exit(0)
 
         # Go import air quality data
-        most_recent_date = datetime.utcnow().date()
+        most_recent_date = get_most_recent_record(bq_client, bq_dataset, airquality_table_name)
+        if most_recent_date:
+            most_recent_date += timedelta(days=1)
+        else:
+            most_recent_date = datetime.utcnow().date()
         loop_airquality_observation_days(most_recent_date, bq_client, bq_dataset, bq_aq_table)
 
     log.info("Done.")

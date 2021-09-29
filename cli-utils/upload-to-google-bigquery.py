@@ -282,7 +282,7 @@ def _insert_data(rows_to_insert: list, bigquery_client: bigquery.Client, bigquer
 
 
 def main():
-    parser = argparse.ArgumentParser(description='OpenDNSSEC BIND slave zone configurator')
+    parser = argparse.ArgumentParser(description='Extract Weather Underground PWS data into CSV and upload to Google BigQuery')
     parser.add_argument('--bigquery-json-credentials',
                         metavar='GOOGLE-JSON-CREDENTIALS-FILE', required=True,
                         help='Mandatory. JSON-file with Google BigQuery API Service Account credentials.')

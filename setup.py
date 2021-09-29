@@ -8,5 +8,8 @@ setup(
     license='GPLv2',
     author='Jari Turkia',
     author_email='jatu@hqcodeshop.fi',
-    description='Weather Underground API tools'
+    description='Weather Underground API tools',
+    requires=[
+        'numpy', 'google-cloud-bigquery', 'fmiopendata',
+    ]
 )
